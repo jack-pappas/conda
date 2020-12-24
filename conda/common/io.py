@@ -579,13 +579,20 @@ def get_instrumentation_record_file():
 
 class time_recorder(ContextDecorator):  # pragma: no cover
     record_file = get_instrumentation_record_file()
-    start_time = None
     total_call_num = defaultdict(int)
     total_run_time = defaultdict(float)
 
     def __init__(self, entry_name=None, module_name=None):
         self.entry_name = entry_name
         self.module_name = module_name
+
+        # start_time is a list (used as a stack) to support re-entrancy;
+        # the list elements are start timestamps of operations.
+        # This is made an instance attribute instead of a class attribute so
+        # it only needs to track timestamps; if it were a class attribute the
+        # elements would need to be e.g. tuples tracking for each operation
+        # both the entry name and the start timestamp.
+        self.start_time = []
 
     def _set_entry_name(self, f):
         if self.entry_name is None:
@@ -602,16 +609,29 @@ class time_recorder(ContextDecorator):  # pragma: no cover
         return super(time_recorder, self).__call__(f)
 
     def __enter__(self):
+        # N.B. If the environment variable value could change (to toggle
+        # whether instrumentation is enabled) during the process, the code
+        # would need to be modified to work correctly; otherwise, a start
+        # timestamp may not (for example) by recorded for an operation, then
+        # instrumentation is toggled ON, then the operation finishes and the
+        # end time will be paired with the wrong start timestamp.
         enabled = os.environ.get('CONDA_INSTRUMENTATION_ENABLED')
         if enabled and boolify(enabled):
-            self.start_time = time()
+            self.start_time.append(time())
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.start_time:
-            entry_name = self.entry_name
+            # Record the end timestamp as early as possible in this method
+            # to maximize the accuracy of the recorded data.
             end_time = time()
-            run_time = end_time - self.start_time
+
+            # Pop the most-recent starting timestamp off the stack.
+            # See comment above in __enter__ for a scenario where this
+            # could produce incorrect results.
+            start_time = self.start_time.pop()
+            entry_name = self.entry_name
+            run_time = end_time - start_time
             self.total_call_num[entry_name] += 1
             self.total_run_time[entry_name] += run_time
             self._ensure_dir()
