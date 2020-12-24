@@ -918,6 +918,7 @@ class Resolve(object):
             log.debug("gen_clauses returning with clause count: %d", C.get_clause_count())
         return C
 
+    @time_recorder(module_name=__name__)
     def generate_spec_constraints(self, C, specs):
         result = [(self.push_MatchSpec(C, ms),) for ms in specs]
         if log.isEnabledFor(DEBUG):
@@ -926,6 +927,7 @@ class Resolve(object):
                 C.get_clause_count())
         return result
 
+    @time_recorder(module_name=__name__)
     def generate_feature_count(self, C):
         result = {self.push_MatchSpec(C, MatchSpec(track_features=name)): 1
                   for name in iterkeys(self.trackers)}
@@ -937,6 +939,7 @@ class Resolve(object):
     def generate_update_count(self, C, specs):
         return {'!'+ms.target: 1 for ms in specs if ms.target and C.from_name(ms.target)}
 
+    @time_recorder(module_name=__name__)
     def generate_feature_metric(self, C):
         eq = {}  # a C.minimize() objective: Dict[varname, coeff]
         # Given a pair (prec, feature), assign a "1" score IF:
@@ -1083,6 +1086,7 @@ class Resolve(object):
         solution = C.sat(constraints)
         return bool(solution)
 
+    @time_recorder(module_name=__name__)
     def get_conflicting_specs(self, specs, explicit_specs):
         if not specs:
             return ()
@@ -1114,6 +1118,7 @@ class Resolve(object):
             final_unsat_specs = None
         return final_unsat_specs
 
+    @time_recorder(module_name=__name__)
     def bad_installed(self, installed, new_specs):
         log.debug('Checking if the current environment is consistent')
         if not installed:
